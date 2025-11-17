@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "[...slug].js": {
-      "runtime": "nodejs18.x"
-    }
-  }
-}

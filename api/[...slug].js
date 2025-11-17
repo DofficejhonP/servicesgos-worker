@@ -10,9 +10,16 @@ export default async function handler(req, res) {
 
   const server = servers[Math.floor(Math.random() * servers.length)];
   
-  // ВСЕ ЗАПРОСЫ проксируем (включая CSS, JS, изображения)
-  const targetUrl = `${server}${req.url}`;
+  // Восстанавливаем оригинальный путь (убираем /api)
+  let originalPath = req.url;
+  if (req.url.startsWith('/api/')) {
+    originalPath = req.url.replace('/api', '');
+  }
+  if (!originalPath || originalPath === '/') {
+    originalPath = '/';
+  }
   
+  const targetUrl = `${server}${originalPath}`;
   console.log('Proxying to:', targetUrl);
 
   if (req.method === 'OPTIONS') {
@@ -29,29 +36,26 @@ export default async function handler(req, res) {
       headers: {
         'User-Agent': req.headers['user-agent'] || 'Vercel-Proxy',
         'X-Forwarded-For': req.headers['x-forwarded-for'] || '127.0.0.1',
-        'X-Real-IP': req.headers['x-forwarded-for'] || '127.0.0.1',
-        'Accept': req.headers['accept'] || '*/*',
-        'Referer': req.headers['referer'],
-        'Accept-Encoding': req.headers['accept-encoding']
+        'Accept': req.headers['accept'] || '*/*'
       }
     });
 
-    // Получаем контент
     const contentType = response.headers.get('content-type') || 'text/html';
     
-    // Для бинарных файлов используем arrayBuffer
-    let data;
-    if (contentType.includes('image/') || contentType.includes('application/') || contentType.includes('font/')) {
-      const arrayBuffer = await response.arrayBuffer();
-      data = Buffer.from(arrayBuffer);
-    } else {
-      data = await response.text();
+    // Для бинарных файлов
+    if (contentType.includes('image/') || contentType.includes('font/') || contentType.includes('application/octet-stream')) {
+      const buffer = await response.arrayBuffer();
+      return res.status(response.status)
+        .setHeader('Content-Type', contentType)
+        .setHeader('Cache-Control', 'public, max-age=86400')
+        .send(Buffer.from(buffer));
     }
-
+    
+    // Для текстовых файлов
+    const data = await response.text();
     return res.status(response.status)
       .setHeader('Access-Control-Allow-Origin', '*')
       .setHeader('Content-Type', contentType)
-      .setHeader('Cache-Control', response.headers.get('cache-control') || 'public, max-age=0')
       .setHeader('X-Proxy-Server', server)
       .send(data);
 
@@ -59,10 +63,6 @@ export default async function handler(req, res) {
     console.error('Proxy error:', error);
     return res.status(503)
       .setHeader('Access-Control-Allow-Origin', '*')
-      .json({ 
-        error: 'Proxy Error',
-        message: error.message,
-        url: targetUrl
-      });
+      .json({ error: error.message, url: targetUrl });
   }
 }

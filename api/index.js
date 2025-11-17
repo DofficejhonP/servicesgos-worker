@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  console.log('API called:', req.method, req.url);
+  console.log('Request:', req.method, req.url);
   
   const servers = [
     'http://89.221.203.30:3000',
@@ -10,13 +10,11 @@ export default async function handler(req, res) {
 
   const server = servers[Math.floor(Math.random() * servers.length)];
   
-  // Убираем /api из пути для проксирования
-  const path = req.url === '/api' ? '/' : req.url.replace('/api', '');
-  const targetUrl = `${server}${path}`;
+  // ВСЕ ЗАПРОСЫ проксируем (включая CSS, JS, изображения)
+  const targetUrl = `${server}${req.url}`;
   
-  console.log('Target URL:', targetUrl);
+  console.log('Proxying to:', targetUrl);
 
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200)
       .setHeader('Access-Control-Allow-Origin', '*')
@@ -30,21 +28,31 @@ export default async function handler(req, res) {
       method: req.method,
       headers: {
         'User-Agent': req.headers['user-agent'] || 'Vercel-Proxy',
-        'X-Forwarded-For': req.headers['x-real-ip'] || '127.0.0.1',
-        'X-Real-IP': req.headers['x-real-ip'] || '127.0.0.1',
+        'X-Forwarded-For': req.headers['x-forwarded-for'] || '127.0.0.1',
+        'X-Real-IP': req.headers['x-forwarded-for'] || '127.0.0.1',
         'Accept': req.headers['accept'] || '*/*',
-        'Host': new URL(targetUrl).host
+        'Referer': req.headers['referer'],
+        'Accept-Encoding': req.headers['accept-encoding']
       }
     });
 
-    const data = await response.text();
+    // Получаем контент
     const contentType = response.headers.get('content-type') || 'text/html';
+    
+    // Для бинарных файлов используем arrayBuffer
+    let data;
+    if (contentType.includes('image/') || contentType.includes('application/') || contentType.includes('font/')) {
+      const arrayBuffer = await response.arrayBuffer();
+      data = Buffer.from(arrayBuffer);
+    } else {
+      data = await response.text();
+    }
 
     return res.status(response.status)
       .setHeader('Access-Control-Allow-Origin', '*')
       .setHeader('Content-Type', contentType)
+      .setHeader('Cache-Control', response.headers.get('cache-control') || 'public, max-age=0')
       .setHeader('X-Proxy-Server', server)
-      .setHeader('X-Served-By', 'Vercel-Proxy')
       .send(data);
 
   } catch (error) {
@@ -54,9 +62,7 @@ export default async function handler(req, res) {
       .json({ 
         error: 'Proxy Error',
         message: error.message,
-        server: server,
-        targetUrl: targetUrl,
-        timestamp: new Date().toISOString()
+        url: targetUrl
       });
   }
 }

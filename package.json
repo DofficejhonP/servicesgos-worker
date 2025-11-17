@@ -1,11 +1,4 @@
 {
   "name": "servicesgos-proxy",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "build": "mkdir -p public && echo '<!DOCTYPE html><html><head><script>window.location.href=\"/api\";</script></head><body>Redirecting...</body></html>' > public/index.html"
-  },
-  "engines": {
-    "node": "20.x"
-  }
+  "version": "1.0.0"
 }

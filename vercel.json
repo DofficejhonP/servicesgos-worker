@@ -1,5 +1,26 @@
 {
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/css/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/js/(.*)", 
+      "destination": "/api/index"
+    },
+    {
+      "source": "/images/(.*)",
+      "destination": "/api/index"
+    },
     {
       "source": "/(.*)",
       "destination": "/api/index"
